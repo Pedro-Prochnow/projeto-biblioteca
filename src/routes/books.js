@@ -1,19 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const adminMiddleware = require('../middleware/admin');
-const Book = require('../models/Book'); // Ajusta conforme seu modelo
+const auth = require('../middlewares/auth');
+const admin = require('../middlewares/admin');
+const bookCtrl = require('../controller/book');
 
-// Listar todos os livros
-router.get('/', async (req, res) => {
-  const books = await Book.find();
-  res.json(books);
-});
-
-// Criar novo livro (somente admin)
-router.post('/', adminMiddleware, async (req, res) => {
-  const newBook = new Book(req.body);
-  await newBook.save();
-  res.status(201).json(newBook);
-});
+// Rotas de livros
+router.get('/', auth, bookCtrl.getAll);
+router.get('/:id', auth, bookCtrl.getById);
+router.post('/', auth, admin, bookCtrl.create);
+router.patch('/:id', auth, admin, bookCtrl.update);
+router.delete('/:id', auth, admin, bookCtrl.remove);
+router.post('/:id/borrow', auth, bookCtrl.borrow);
+router.post('/:id/return', auth, bookCtrl.returnBook);
 
 module.exports = router;
