@@ -1,98 +1,54 @@
-const { PrismaClient } = require('@prisma/client');
+import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
-// Listar todos
-async function getAll(req, res) {
-  const books = await prisma.books.findMany();
-  res.json(books);
-}
+export const listarLivros = async (req, res) => {
+    try {
+        const livros = await prisma.livro.findMany();
+        res.json(livros);
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao listar livros' });
+    }
+};
 
-// Buscar por ID
-async function getById(req, res) {
-  const { id } = req.params;
-  const book = await prisma.books.findUnique({ where: { id: Number(id) } });
-  if (!book) return res.status(404).json({ message: 'Livro não encontrado' });
-  res.json(book);
-}
+export const criarLivro = async (req, res) => {
+    const { titulo, autor, ano } = req.body;
+    if (!titulo || !autor || !ano) return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
 
-// Criar livro (admin)
-async function create(req, res) {
-  const { title, author } = req.body;
-  if (!title || !author) {
-    return res.status(400).json({ message: 'Título e autor são obrigatórios' });
-  }
-  const book = await prisma.books.create({ data: { title, author } });
-  res.json({ message: 'Livro criado', book });
-}
+    try {
+        const livro = await prisma.livro.create({ data: { titulo, autor, ano } });
+        res.status(201).json(livro);
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao criar livro' });
+    }
+};
 
-// Atualizar livro (admin)
-async function update(req, res) {
-  const { id } = req.params;
-  const data = req.body;
-  try {
-    const book = await prisma.books.update({
-      where: { id: Number(id) },
-      data
-    });
-    res.json({ message: 'Livro atualizado', book });
-  } catch {
-    res.status(404).json({ message: 'Livro não encontrado' });
-  }
-}
+export const emprestarLivro = async (req, res) => {
+    const livroId = parseInt(req.params.id);
+    const usuarioId = req.user.id;
 
-// Deletar livro (admin)
-async function remove(req, res) {
-  const { id } = req.params;
-  try {
-    await prisma.books.delete({ where: { id: Number(id) } });
-    res.json({ message: 'Livro removido' });
-  } catch {
-    res.status(404).json({ message: 'Livro não encontrado' });
-  }
-}
+    try {
+        const livro = await prisma.livro.findUnique({ where: { id: livroId } });
+        if (!livro) return res.status(404).json({ error: 'Livro não encontrado' });
+        if (livro.emprestado) return res.status(400).json({ error: 'Livro já emprestado' });
 
-// Emprestar livro
-async function borrow(req, res) {
-  const { id } = req.params;
-  const book = await prisma.books.findUnique({ where: { id: Number(id) } });
+        await prisma.livro.update({ where: { id: livroId }, data: { emprestado: true, usuarioId } });
+        res.json({ message: 'Livro emprestado com sucesso' });
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao emprestar livro' });
+    }
+};
 
-  if (!book) return res.status(404).json({ message: 'Livro não encontrado' });
-  if (!book.available) {
-    return res.status(400).json({ message: 'Livro indisponível' });
-  }
+export const devolverLivro = async (req, res) => {
+    const livroId = parseInt(req.params.id);
 
-  await prisma.books.update({
-    where: { id: Number(id) },
-    data: { available: false }
-  });
+    try {
+        const livro = await prisma.livro.findUnique({ where: { id: livroId } });
+        if (!livro) return res.status(404).json({ error: 'Livro não encontrado' });
+        if (!livro.emprestado) return res.status(400).json({ error: 'Livro não está emprestado' });
 
-  res.json({ message: 'Livro emprestado com sucesso' });
-}
-
-// Devolver livro
-async function returnBook(req, res) {
-  const { id } = req.params;
-  const book = await prisma.books.findUnique({ where: { id: Number(id) } });
-
-  if (!book) return res.status(404).json({ message: 'Livro não encontrado' });
-  if (book.available) {
-    return res.status(400).json({ message: 'Livro já está disponível' });
-  }
-
-  await prisma.books.update({
-    where: { id: Number(id) },
-    data: { available: true }
-  });
-
-  res.json({ message: 'Livro devolvido com sucesso' });
-}
-
-module.exports = {
-  getAll,
-  getById,
-  create,
-  update,
-  remove,
-  borrow,
-  returnBook
+        await prisma.livro.update({ where: { id: livroId }, data: { emprestado: false, usuarioId: null } });
+        res.json({ message: 'Livro devolvido com sucesso' });
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao devolver livro' });
+    }
 };

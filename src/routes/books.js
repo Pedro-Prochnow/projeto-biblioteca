@@ -1,16 +1,13 @@
-const express = require('express');
+import express from 'express';
+import { listarLivros, criarLivro, emprestarLivro, devolverLivro } from '../controller/book.js';
+import { authMiddleware } from '../middlewares/auth.js';
+import { adminMiddleware } from '../middlewares/admin.js';
+
 const router = express.Router();
-const auth = require('../middlewares/auth');
-const admin = require('../middlewares/admin');
-const bookCtrl = require('../controller/book');
 
-// Rotas de livros
-router.get('/', auth, bookCtrl.getAll);
-router.get('/:id', auth, bookCtrl.getById);
-router.post('/', auth, admin, bookCtrl.create);
-router.patch('/:id', auth, admin, bookCtrl.update);
-router.delete('/:id', auth, admin, bookCtrl.remove);
-router.post('/:id/borrow', auth, bookCtrl.borrow);
-router.post('/:id/return', auth, bookCtrl.returnBook);
+router.get('/', authMiddleware, listarLivros);
+router.post('/', authMiddleware, adminMiddleware, criarLivro);
+router.post('/:id/emprestar', authMiddleware, emprestarLivro);
+router.post('/:id/devolver', authMiddleware, devolverLivro);
 
-module.exports = router;
+export default router;

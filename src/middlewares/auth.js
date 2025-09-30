@@ -1,22 +1,19 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+import jwt from 'jsonwebtoken';
+const JWT_SECRET = 'seusegredoaqui';
 
-module.exports = async function authMiddleware(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Basic ')) {
-    return res.status(401).json({ message: 'Credenciais ausentes' });
-  }
+export const authMiddleware = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(401).json({ error: 'Token não fornecido' });
 
-  const base64 = authHeader.split(' ')[1];
-  const decoded = Buffer.from(base64, 'base64').toString('utf-8');
-  const [username, password] = decoded.split(':');
+    const token = authHeader.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'Token inválido' });
 
-  const user = await prisma.users.findUnique({ where: { username } });
-
-  if (!user || user.password !== password) {
-    return res.status(401).json({ message: 'Usuário ou senha inválidos' });
-  }
-
-  req.user = user;
-  next();
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (err) {
+        return res.status(401).json({ error: 'Token inválido' });
+    }
 };
+

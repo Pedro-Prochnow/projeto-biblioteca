@@ -1,27 +1,43 @@
-const { PrismaClient } = require('@prisma/client');
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { PrismaClient } from '@prisma/client';
+
 const prisma = new PrismaClient();
+const JWT_SECRET = 'seusegredoaqui';
 
-async function register(req, res) {
-  const { username, password } = req.body;
+export const register = async (req, res) => {
+    const { nome, email, senha } = req.body;
+    if (!nome || !email || !senha) return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
 
-  if (!username || !password || password.length < 4) {
-    return res.status(400).json({ message: 'Dados inválidos' });
-  }
+    try {
+        const userExists = await prisma.usuario.findUnique({ where: { email } });
+        if (userExists) return res.status(400).json({ error: 'Usuário já existe' });
 
-  const exists = await prisma.users.findUnique({ where: { username } });
-  if (exists) {
-    return res.status(400).json({ message: 'Usuário já existe' });
-  }
+        const hashedPassword = await bcrypt.hash(senha, 10);
+        const usuario = await prisma.usuario.create({
+            data: { nome, email, senha: hashedPassword, isAdmin: false }
+        });
 
-  // Se for o primeiro usuário, ele é admin automaticamente
-  const count = await prisma.users.count();
-  const isAdmin = count === 0;
+        res.status(201).json({ usuario });
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao registrar usuário' });
+    }
+};
 
-  const user = await prisma.users.create({
-    data: { username, password, isAdmin }
-  });
+export const login = async (req, res) => {
+    const { email, senha } = req.body;
+    if (!email || !senha) return res.status(400).json({ error: 'Email e senha obrigatórios' });
 
-  res.json({ message: 'Usuário registrado com sucesso', userId: user.id });
-}
+    try {
+        const usuario = await prisma.usuario.findUnique({ where: { email } });
+        if (!usuario) return res.status(400).json({ error: 'Usuário não encontrado' });
 
-module.exports = { register };
+        const valid = await bcrypt.compare(senha, usuario.senha);
+        if (!valid) return res.status(400).json({ error: 'Senha incorreta' });
+
+        const token = jwt.sign({ id: usuario.id, isAdmin: usuario.isAdmin }, JWT_SECRET, { expiresIn: '1h' });
+        res.json({ token });
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao fazer login' });
+    }
+};
